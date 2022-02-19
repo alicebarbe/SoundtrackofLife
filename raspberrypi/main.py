@@ -13,6 +13,8 @@ import eeglib
 import requests
 import json
 
+from dataupload import upload_data
+
 url = "https://us-central1-aiot-fit-xlab.cloudfunctions.net/meercatapploader"
 
 headers = {
@@ -23,7 +25,7 @@ headers = {
 
 os.system('modprobe w1-gpio')
 os.system('modprobe w1-therm')
- 
+
 base_dir = '/sys/bus/w1/devices/'
 device_folder = glob.glob(base_dir + '28*')[0]
 device_file = device_folder + '/w1_slave'
@@ -107,7 +109,7 @@ def get_hrv(rr):
     reading['hrv'] = tdf['sdnn']
 
     return reading
-        
+
 def sensors_settle():
     print("Start settling")
     for i in range(5000):
@@ -122,68 +124,63 @@ def read_fast_data():
     gsr_batch = []
     batch_size = 50000
     i = 0
-    
+
     start_time = time.time_ns()
     while 1:
         i = i + 1
 
         ecg_reading = adc.read_voltage(ECG_A)
         ecg_batch.append(ecg_reading)
-        
+
         eeg_reading = adc.read_voltage(EMG_A)
         eeg_batch.append(eeg_reading)
-        
+
         gsr_reading = adc.read_voltage(GSR_A)
         gsr_batch.append(gsr_reading)
-        
+
         if i >=batch_size:
             end_time = time.time_ns()
             time_elapsed = end_time - start_time
-            
+
             # process ECG data
             rr_arr = calculate_rr(ecg_batch, time_elapsed/1000000.0)
             hrv_dict = get_hrv(rr_arr)
             #print(hrv_dict)
             #np.savetxt(f'ecg_data_{start_time}_to_{end_time}.csv', np.array(ecg_batch), delimiter=",")
-            
+
             # process EEG data
             samplerate = len(eeg_batch) / (time_elapsed/1000000000.0)
             brainwaves = eeglib.getbrainwaves(eeg_batch, samplerate)
             #print(brainwaves)
             #np.savetxt(f'eeg_data_{start_time}_to_{end_time}.csv', np.array(eeg_batch), delimiter=",")
-            
+
             # process GSR data
             gsr_avg = np.array(gsr_batch).mean()
             #print(gsr_avg)
             #np.savetxt(f'gsr_data_{start_time}_to_{end_time}.csv', np.array(gsr_batch), delimiter=",")
-            
+
             # get temperature
             temp_reading = gettemp()
             #print(temp_reading)
             #np.savetxt('temp_reading_{end_time}.csv', np.array([temp_reading]), delimiter=",")
-            
-            payload = json.dumps({
-              "action": "putdata",
-              "uid": "-1",
-              "data": {
-                "hr": hrv_dict['hr'],
-                "hrstd": hrv_dict['hrstd'],
-                "hrv": hrv_dict['hrv'],
-                "ectopic": hrv_dict['ectopic'],
-                "alpha": brainwaves['alpha'],
-                "beta": brainwaves['beta'],
-                "delta": brainwaves['delta'],
-                "gamma": brainwaves['gamma'],
-                "theta": brainwaves['theta'],
-                "temp": temp_reading,
-                "gsr": gsr_avg
-              }
-            })
-            
-            response = requests.request("POST", url, headers=headers, data=payload)
 
-            print(response.text)
-            
+
+            payload = {
+              "hr": hrv_dict['hr'],
+              "hrstd": hrv_dict['hrstd'],
+              "hrv": hrv_dict['hrv'],
+              "ectopic": hrv_dict['ectopic'],
+              "alpha": brainwaves['alpha'],
+              "beta": brainwaves['beta'],
+              "delta": brainwaves['delta'],
+              "gamma": brainwaves['gamma'],
+              "theta": brainwaves['theta'],
+              "temp": temp_reading,
+              "gsr": gsr_avg
+            }
+
+            upload_data(payload)
+
             #print(f"Data saved.")
             #print(f"Start time {start_time}, end time {end_time}")
             ecg_batch = []

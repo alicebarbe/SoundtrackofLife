@@ -4,17 +4,12 @@ def getbrainwaves(eegraw, samplerate):
         amplitude = np.array(eegraw)
 
         fourierTransform = np.fft.fft(amplitude)/len(amplitude)           # Normalize amplitude
-
         fourierTransform = fourierTransform[range(int(len(amplitude)/2))] # Exclude sampling frequency
 
 
-
         tpCount     = len(amplitude)
-
         values      = np.arange(int(tpCount/2))
-
         timePeriod  = tpCount/samplerate
-
         frequencies = values/timePeriod
 
         alpha = 0
@@ -23,6 +18,7 @@ def getbrainwaves(eegraw, samplerate):
         delta = 0
         theta = 0
 
+        #TODO: verify that these are correct
         for x,y in np.c_[frequencies,abs(fourierTransform)]:
             if x>0.1 and x<3.6:
                 delta = delta + y
