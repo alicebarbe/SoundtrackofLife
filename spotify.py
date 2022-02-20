@@ -17,22 +17,16 @@ import pandas as pd
 with open('credentials.json', 'r') as f:
     cred = json.load(f)
 
-username = cred['spotify']['username']
-cid = cred['spotify']['client_id']
-csecret = cred['spotify']['client_secret']
-
-scope = "user-library-read"
+scope = "user-library-read-playback"
 
 ruri = r"https://www.google.com"
 
-token = spotipy.util.prompt_for_user_token(username, scope,
-                                           client_id=cid,
-                                           client_secret=csecret,
+token = spotipy.util.prompt_for_user_token(cred['spotify']['username'], scope,
+                                           client_id=cred['spotify']['client_id'],
+                                           client_secret=cred['spotify']['client_secret'],
                                            redirect_uri=ruri)
 
-playlist_df = pd.DataFrame(columns=['uri', 'name', 'artist', 'energy', 'valence'])
-
-def get_library_tracks():
+def get_library_tracks(sp):
     results = sp.current_user_saved_tracks(limit=50)
     tracks = results['items']
     while results['next']:
@@ -40,30 +34,58 @@ def get_library_tracks():
         tracks.extend(results['items'])
     return tracks
 
-if token:
-    sp = spotipy.Spotify(auth=token)
-    #results = sp.current_user_saved_tracks(limit=50)
-    results = get_library_tracks()
-    results = [result['track'] for result in results]
+def get_playlist_df(token):
+    playlist_df = pd.DataFrame(columns=['uri', 'name', 'artist', 'energy', 'valence'])
 
-    i = 0
-    for track in results:
-        track_uri = track["uri"]
-        track_name = track['name']
-        track_artist = track['artists'][0]['name']
-        energy = sp.audio_features(track_uri)[0]['energy']
-        valence = sp.audio_features(track_uri)[0]['valence']
-        playlist_df = playlist_df.append({'uri': track_uri,
-                                          'name': track_name,
-                                          'artist': track_artist,
-                                          'energy': energy,
-                                          'valence': valence}, ignore_index=True)
-        print(f"{i}: {track_name} - {track_artist}")
-        i += 1
-else:
-    print("Can't get token for", username)
+    if token:
+        sp = spotipy.Spotify(auth=token)
+        #results = sp.current_user_saved_tracks(limit=50)
+        results = get_library_tracks(sp)
+        results = [result['track'] for result in results]
 
-# %% plot values
+        i = 0
+        for track in results:
+            track_uri = track["uri"]
+            track_name = track['name']
+            track_artist = track['artists'][0]['name']
+            energy = sp.audio_features(track_uri)[0]['energy']
+            valence = sp.audio_features(track_uri)[0]['valence']
+            playlist_df = playlist_df.append({'uri': track_uri,
+                                              'name': track_name,
+                                              'artist': track_artist,
+                                              'energy': energy,
+                                              'valence': valence}, ignore_index=True)
+            print(f"{i}: {track_name} - {track_artist}")
+            i += 1
+    else:
+        print("Can't get token for", username)
+
+    return playlist_df
+
+playlist_df = get_playlist_df(token)
+
+# %% generate tree
+from scipy import spatial
+valence_energy_pairs = list(playlist_df[['valence', 'energy']].itertuples(index=False, name=None))
+k=1 # gets incremented to prevent same song from being played over and over again
+tree = spatial.KDTree(valence_energy_pairs)
+
+# %% PLAY MUSIC
+
+_, closest_index = tree.query([0, 0.001], k=[k])
+closest_index = closest_index[0]
+print(playlist_df.loc[closest_index, :])
+
+scope = "streaming"
+token = spotipy.util.prompt_for_user_token(cred['spotify_premium']['username'], scope,
+                                           client_id=cred['spotify_premium']['client_id'],
+                                           client_secret=cred['spotify_premium']['client_secret'],
+                                           redirect_uri=ruri)
+sp = spotipy.Spotify(auth=token)
+sp.start_playback(device_id=cred['spotify_premium']['device_id'],
+                  uris=[playlist_df.loc[closest_index, 'uri']])
+
+# %% plot values of library
 import plotly.graph_objects as go
 from plotly.offline import plot as htmlplot
 import plotly.express as px
