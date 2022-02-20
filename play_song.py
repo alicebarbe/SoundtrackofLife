@@ -87,8 +87,8 @@ while i<100:
             latest_biodata['eegraw'], latest_biodata['eegsamplerate'])
         # magic formula
         print(recalculated_brainwaves["arousal"], recalculated_brainwaves["valence"])
-        arousal_coord = abs(recalculated_brainwaves["arousal"])+(latest_biodata['hr']/100)
-        valence_coord = abs(recalculated_brainwaves["valence"])*10
+        arousal_coord = abs(recalculated_brainwaves["arousal"])+(latest_biodata['hr']/180)
+        valence_coord = abs(recalculated_brainwaves["valence"])*5
         print(datetime.datetime.fromtimestamp(latest_biodata['TimeStamp']))
         print(f"arousal = {arousal_coord}, valence = {valence_coord}")
         coord = [arousal_coord, valence_coord]
