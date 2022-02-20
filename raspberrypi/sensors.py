@@ -15,7 +15,8 @@ def changed(input):
 def readAnalog(value):
     if value == 4:
         return explorerhat.analog.four.read()
-
+    if value == 1:
+        return explorerhat.analog.one.read()
     else:
         return 0
 
